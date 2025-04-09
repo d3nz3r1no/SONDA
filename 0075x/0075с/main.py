@@ -1,5 +1,5 @@
 import threading
-from db_init import *
+from db import *
 
 # Запуск бота
 if __name__ == "__main__":

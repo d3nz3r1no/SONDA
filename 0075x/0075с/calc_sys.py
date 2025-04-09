@@ -1,5 +1,5 @@
 import math
-from dberrorslog import *
+from db import *
 
 def safe_calc(expression):
     """Безопасное вычисление с поддержкой новых операций"""
