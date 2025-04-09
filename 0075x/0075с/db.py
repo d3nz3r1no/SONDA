@@ -1,25 +1,23 @@
-from db import *
 from log_action import *
+import sqlite3
 from notifyadmin import *
+from datetime import datetime
 from time import sleep
 import os
 
 def handle_db_errors(func):
-    """Декоратор для обработки ошибок базы данных"""
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except sqlite3.OperationalError as e:
-            print(f"[{get_time()}] Ошибка базы данных: {e}")
-            log_action(args[0].chat.id if args else 0, f"DB Error: {str(e)}", is_error=True)
+            error_msg = f"Ошибка БД: {e}"
+            print(f"[{get_time()}] {error_msg}")
+            log_action(0, error_msg, is_error=True)
             return None
-        except sqlite3.IntegrityError as e:
-            print(f"[{get_time()}] Ошибка целостности данных: {e}")
-            log_action(args[0].chat.id if args else 0, f"Integrity Error: {str(e)}", is_error=True)
-            return None
-        except sqlite3.Error as e:
-            print(f"[{get_time()}] Неизвестная ошибка SQLite: {e}")
-            log_action(args[0].chat.id if args else 0, f"Unknown SQL Error: {str(e)}", is_error=True)
+        except Exception as e:
+            error_msg = f"Неизвестная ошибка: {e}"
+            print(f"[{get_time()}] {error_msg}")
+            log_action(0, error_msg, is_error=True)
             return None
     return wrapper
 
@@ -75,26 +73,22 @@ def init_db():
         print(f"[{get_time()}] Критическая ошибка инициализации БД: {e}")
         raise
 
-init_db()
-
-@handle_db_errors
 def backup_db():
-    """Создает резервную копию базы данных"""
+    """Создает резервную копию БД с проверкой пути"""
     try:
-        backup_name = f"sonda_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+        backup_dir = "backups"
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_name = os.path.join(backup_dir, f"sonda_backup_{timestamp}.db")
+
         with open('sonda_bot.db', 'rb') as src, open(backup_name, 'wb') as dst:
             dst.write(src.read())
-        log_action(0, f"Создана резервная копия: {backup_name}")
+
+        log_action(0, f"Резервная копия создана: {backup_name}")
     except Exception as e:
-        log_action(0, f"Ошибка резервирования: {str(e)}", is_error=True)
-        try:
-            backup_name = f"emergency_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
-            with open('sonda_bot.db', 'rb') as src, open(backup_name, 'wb') as dst:
-                dst.write(src.read())
-            log_action(0, f"Создана аварийная резервная копия: {backup_name}")
-        except Exception as e2:
-            log_action(0, f"Критическая ошибка резервирования: {str(e2)}", is_error=True)
-            notify_admin(f"Не удалось создать резервную копию: {str(e2)}")
+        log_action(0, f"Ошибка резервирования: {e}", is_error=True)
 
 def auto_backup():
     """Фоновая задача для автоматического резервного копирования"""
@@ -102,15 +96,19 @@ def auto_backup():
         sleep(BACKUP_INTERVAL_DAYS * 86400)  # Конвертация дней в секунды
         backup_db()
 
+
 def check_db_file():
-    """Проверяет существование файла БД"""
+    """Проверяет и создает файл БД при необходимости"""
     try:
+        db_dir = os.path.dirname(os.path.abspath('sonda_bot.db'))
+        if not os.path.exists(db_dir):
+            os.makedirs(db_dir)
+
         if not os.path.exists('sonda_bot.db'):
-            print(f"[{get_time()}] Файл БД не найден, будет создан новый")
-            init_db()
+            print(f"[{get_time()}] Файл БД не найден, создаю новый...")
+            init_db()  # Создаст файл и таблицы
         else:
             print(f"[{get_time()}] Файл БД найден")
-        return True
     except Exception as e:
-        print(f"[{get_time()}] Ошибка проверки файла БД: {e}")
+        print(f"[{get_time()}] Критическая ошибка при проверке БД: {e}")
         raise
