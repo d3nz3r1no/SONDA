@@ -5,6 +5,7 @@ from utils.logger import log_action
 from config import DB_NAME
 from database.db import handle_db_errors
 from database.decorators import handle_db_errors, admin_required
+from globals import user_calculations
 
 # Глобальный словарь для хранения текущих вычислений пользователей
 user_calculations = {}
