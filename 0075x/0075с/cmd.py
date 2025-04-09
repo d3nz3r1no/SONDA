@@ -1,4 +1,4 @@
-from dberrorslog import *
+from db import *
 from buttoms import *
 from log_action import *
 from notifyadmin import *
