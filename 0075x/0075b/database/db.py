@@ -1,9 +1,13 @@
 import sqlite3
 from datetime import datetime
-from config import DB_NAME
 from utils.logger import log_action
 from database.decorators import handle_db_errors, admin_required
+import os
+from config import DB_NAME
 
+def check_db_file():
+    if not os.path.exists(DB_NAME):
+        init_db()
 
 def handle_db_errors(func):
     """

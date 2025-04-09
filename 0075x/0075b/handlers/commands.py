@@ -1,10 +1,15 @@
-from telebot import TeleBot, types
+from telebot import types
 from datetime import datetime
 from database.models import User, Log, Calculation
 from utils.logger import log_action
 from config import ADMIN_ID
 from database.db import handle_db_errors
 from database.decorators import handle_db_errors, admin_required
+from telebot import TeleBot
+from database.models import User
+from utils.logger import log_action
+from keyboards import main_markup
+from bot_instance import bot
 
 # Инициализация клавиатур
 main_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
