@@ -1,170 +1,292 @@
-from db import *
-from buttoms import *
-from log_action import *
-from notifyadmin import *
+import logging
+import sqlite3
+from datetime import datetime
+from db import db
+from properties import ADMIN_ID, bot
+from buttoms import markup
 
-# ==================== ОБРАБОТЧИКИ КОМАНД ====================
-@handle_db_errors
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    """Обработчик команды /start"""
+# Настройка логгера
+logger = logging.getLogger(__name__)
+
+
+def get_time():
+    """Возвращает форматированное текущее время"""
+    return datetime.now().strftime("%H:%M:%S")
+
+
+def log_action(user_id, action, is_error=False):
+    """Логирует действие в БД и файл логов"""
     try:
-        with sqlite3.connect('sonda_bot.db') as conn:
-            cursor = conn.cursor()
-            # Регистрация нового пользователя
-            cursor.execute('SELECT 1 FROM users WHERE user_id = ?', (message.chat.id,))
-            if not cursor.fetchone():
-                cursor.execute('''
-                INSERT INTO users (user_id, username, first_name, last_name, registration_date)
-                VALUES (?, ?, ?, ?, ?)
-                ''', (
-                    message.chat.id,
-                    message.from_user.username,
-                    message.from_user.first_name,
-                    message.from_user.last_name,
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                ))
+        conn = db.get_connection()
+        if not conn:
+            logger.error("Не удалось подключиться к БД для логирования")
+            return False
 
-            # Логирование запуска
-            cursor.execute('''
+        cursor = conn.cursor()
+        cursor.execute('''
             INSERT INTO logs (user_id, action, timestamp)
             VALUES (?, ?, ?)
-            ''', (message.chat.id, "start", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        ''', (
+            user_id,
+            f"{'🚨 ' if is_error else ''}{action}",
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка логирования: {str(e)}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+
+def is_admin(user_id):
+    """Проверяет, является ли пользователь администратором"""
+    return user_id == ADMIN_ID
+
+
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    """Обработчик команды /start с регистрацией пользователя"""
+    try:
+        conn = db.get_connection()
+        if not conn:
+            bot.reply_to(message, "⏳ Сервис временно недоступен. Попробуйте позже.")
+            return
+
+        cursor = conn.cursor()
+
+        # Проверка и регистрация пользователя
+        cursor.execute('SELECT 1 FROM users WHERE user_id = ?', (message.chat.id,))
+        if not cursor.fetchone():
+            cursor.execute('''
+                INSERT INTO users (user_id, username, first_name, last_name, registration_date)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                message.chat.id,
+                message.from_user.username,
+                message.from_user.first_name,
+                message.from_user.last_name,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ))
             conn.commit()
+            logger.info(f"Новый пользователь: {message.from_user.username}")
+
+        # Отправка приветственного сообщения
+        welcome_text = (
+            "👋 Добро пожаловать!\n"
+            "Я бот SONDA с удобным калькулятором и другими функциями.\n"
+            "Используйте /help для списка команд."
+        )
 
         bot.send_message(
             message.chat.id,
-            "Успешный старт бота.\nГруппа тестировщиков - https://t.me/sondatest",
+            welcome_text,
             reply_markup=markup
         )
-        print(f"[{get_time()}] Бот запущен пользователем {message.chat.id}")
-    except Exception as e:
-        bot.reply_to(message, "⚠ Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.")
-        log_action(message.chat.id, f"Ошибка при регистрации: {str(e)}", is_error=True)
 
-@bot.message_handler(commands=['mylogs'])  # Логи для пользователей + Защита
+        log_action(message.chat.id, "Команда /start")
+
+    except Exception as e:
+        error_msg = f"Ошибка при регистрации: {str(e)}"
+        bot.reply_to(message, "⚠ Произошла ошибка. Попробуйте позже.")
+        logger.error(error_msg)
+        log_action(message.chat.id, error_msg, is_error=True)
+    finally:
+        if conn:
+            conn.close()
+
+
+@bot.message_handler(commands=['help'])
+def send_help(message):
+    """Обработчик команды /help"""
+    help_text = (
+        "📋 Доступные команды:\n\n"
+        "/start - Начать работу с ботом\n"
+        "/help - Показать это сообщение\n"
+        "/mylogs - Ваши последние действия\n"
+        "/history - История вычислений\n"
+        "/clearmyhistory - Очистить вашу историю\n\n"
+        "Калькулятор поддерживает операции: + - * / ^ √() ! %"
+    )
+
+    bot.reply_to(message, help_text)
+    log_action(message.chat.id, "Запрошена помощь")
+
+
+@bot.message_handler(commands=['mylogs'])
 def show_my_logs(message):
-    """Показывает логи текущего пользователя"""
+    """Показывает последние действия пользователя"""
     try:
-        with sqlite3.connect('sonda_bot.db') as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute('''
+        conn = db.get_connection()
+        if not conn:
+            bot.reply_to(message, "⏳ Сервис временно недоступен.")
+            return
+
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute('''
             SELECT action, timestamp FROM logs 
             WHERE user_id = ? 
             ORDER BY timestamp DESC 
             LIMIT 10
-            ''', (message.chat.id,))
+        ''', (message.chat.id,))
 
-            logs = cursor.fetchall()
+        logs = cursor.fetchall()
 
         if not logs:
             bot.reply_to(message, "📭 Ваша история действий пуста")
             return
 
-        response = "📖 Ваши последние 10 действий:\n\n"
+        response = "📖 Ваши последние действия:\n\n"
         for log in logs:
             response += f"• {log['timestamp']}: {log['action']}\n"
 
         bot.reply_to(message, response)
-        log_action(message.chat.id, "Запрошена история действий")
+        log_action(message.chat.id, "Просмотр логов")
 
     except Exception as e:
-        bot.reply_to(message, f"⚠ Ошибка: {str(e)}")
-        log_action(0, f"Ошибка при запросе логов: {str(e)}", is_error=True)
+        error_msg = f"Ошибка получения логов: {str(e)}"
+        bot.reply_to(message, "⚠ Ошибка при получении логов")
+        logger.error(error_msg)
+        log_action(message.chat.id, error_msg, is_error=True)
+    finally:
+        if conn:
+            conn.close()
 
-# Обработчик команды /help
-@bot.message_handler(commands=['help'])
-def send_help(message):
-    help_text = """
-    Доступные команды:
-    /start - Запустить бота
-    /help - Команды
-    /infobot - Обновления бота
-    /mylogs - 10 ваших последних действий
-    /clearmyhistory - Удалить вашу историю"""
-    bot.reply_to(message, help_text)
 
-# Обработчик команды /infobot
-@bot.message_handler(commands=['infobot'])
-def send_infobot(message):
-    infobot_text = """
-    Версия SONDA 0.0.74
-    Канал по новостям и обновлениям - https://t.me/sondachanel"""
-    bot.reply_to(message, infobot_text)
-
-@handle_db_errors
-@bot.message_handler(commands=['logs'])
-def show_logs(message):
-    if not is_admin(message.chat.id):
-        bot.reply_to(message, "⛔ Доступ запрещен")
-        log_action(message.chat.id, "Попытка доступа к логам без прав", is_error=True)
-        return
-
-    try:
-        with sqlite3.connect('sonda_bot.db') as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-            SELECT action, timestamp FROM logs 
-            ORDER BY log_id DESC LIMIT 10
-            ''')
-            logs = cursor.fetchall()
-
-        response = "📃 Последние 10 действий:\n\n"
-        for action, timestamp in logs:
-            response += f"▫ {timestamp}: {action}\n"
-        bot.reply_to(message, response)
-        log_action(message.chat.id, "Просмотр логов администратором")
-    except Exception as e:
-        bot.reply_to(message, f"❌ Ошибка: {e}")
-        log_action(ADMIN_ID, f"Ошибка при показе логов: {str(e)}", is_error=True)
-
-@handle_db_errors
 @bot.message_handler(commands=['history'])
 def show_history(message):
-    """Показывает историю вычислений"""
+    """Показывает историю вычислений пользователя"""
     try:
-        with sqlite3.connect('sonda_bot.db') as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-            SELECT expression, result, timestamp FROM calculations
-            WHERE user_id = ? ORDER BY calc_id DESC LIMIT 5
-            ''', (message.chat.id,))
-            history = cursor.fetchall()
+        conn = db.get_connection()
+        if not conn:
+            bot.reply_to(message, "⏳ Сервис временно недоступен.")
+            return
+
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT expression, result, timestamp 
+            FROM calculations
+            WHERE user_id = ? 
+            ORDER BY calc_id DESC 
+            LIMIT 5
+        ''', (message.chat.id,))
+
+        history = cursor.fetchall()
 
         if not history:
             bot.reply_to(message, "📭 История вычислений пуста")
             return
 
-        response = "📚 Ваши последние 5 вычислений:\n\n"
-        for expr, result, time in history:
-            response += f"➤ {expr} = {result}\n   ⌚ {time}\n\n"
-        bot.reply_to(message, response)
-    except Exception as e:
-        bot.reply_to(message, "⚠ Не удалось загрузить историю вычислений. Пожалуйста, попробуйте позже.")
-        log_action(message.chat.id, f"Ошибка показа истории: {str(e)}", is_error=True)
+        response = "📚 Ваши последние вычисления:\n\n"
+        for item in history:
+            response += f"➤ {item['expression']} = {item['result']}\n"
+            response += f"   ⌚ {item['timestamp']}\n\n"
 
-@handle_db_errors
-@bot.message_handler(commands=['clearmyhistory']) # Удаляет историю вычислений и действий пользователя
+        bot.reply_to(message, response)
+        log_action(message.chat.id, "Просмотр истории вычислений")
+
+    except Exception as e:
+        error_msg = f"Ошибка получения истории: {str(e)}"
+        bot.reply_to(message, "⚠ Ошибка при загрузке истории")
+        logger.error(error_msg)
+        log_action(message.chat.id, error_msg, is_error=True)
+    finally:
+        if conn:
+            conn.close()
+
+
+@bot.message_handler(commands=['clearmyhistory'])
 def clear_user_history(message):
+    """Очищает историю пользователя"""
     try:
-        with sqlite3.connect('sonda_bot.db') as conn:
-            cursor = conn.cursor()
-            # Удаляем историю вычислений
-            cursor.execute('DELETE FROM calculations WHERE user_id = ?', (message.chat.id,))
-            # Удаляем логи пользователя (кроме команды очистки)
-            cursor.execute('DELETE FROM logs WHERE user_id = ? AND action != "Очищена история"', (message.chat.id,))
-            # Логируем действие
-            cursor.execute('''
+        conn = db.get_connection()
+        if not conn:
+            bot.reply_to(message, "⏳ Сервис временно недоступен.")
+            return
+
+        cursor = conn.cursor()
+
+        # Удаление истории вычислений
+        cursor.execute('DELETE FROM calculations WHERE user_id = ?', (message.chat.id,))
+
+        # Удаление логов (кроме самой команды очистки)
+        cursor.execute('''
+            DELETE FROM logs 
+            WHERE user_id = ? 
+            AND action NOT LIKE '%Очищена история%'
+        ''', (message.chat.id,))
+
+        # Логирование действия
+        cursor.execute('''
             INSERT INTO logs (user_id, action, timestamp)
             VALUES (?, ?, ?)
-            ''', (
-                message.chat.id,
-                "Очищена история",
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ))
-            conn.commit()
-        bot.reply_to(message, "✅ Ваша история вычислений и действий была очищена")
+        ''', (
+            message.chat.id,
+            "Очищена история",
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ))
+
+        conn.commit()
+        bot.reply_to(message, "✅ Ваша история очищена")
+        log_action(message.chat.id, "Очистка истории")
+
     except Exception as e:
-        bot.reply_to(message, f"⚠ Ошибка при очистке истории: {str(e)}")
-        log_action(0, f"Ошибка очистки истории: {str(e)}", is_error=True)
+        error_msg = f"Ошибка очистки истории: {str(e)}"
+        bot.reply_to(message, "⚠ Ошибка при очистке истории")
+        logger.error(error_msg)
+        log_action(message.chat.id, error_msg, is_error=True)
+    finally:
+        if conn:
+            conn.close()
+
+
+@bot.message_handler(commands=['logs'])
+def show_system_logs(message):
+    """Показывает системные логи (только для администратора)"""
+    if not is_admin(message.chat.id):
+        bot.reply_to(message, "⛔ Доступ запрещен")
+        log_action(message.chat.id, "Попытка доступа к системным логам", is_error=True)
+        return
+
+    try:
+        conn = db.get_connection()
+        if not conn:
+            bot.reply_to(message, "⏳ Сервис временно недоступен.")
+            return
+
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT user_id, action, timestamp 
+            FROM logs 
+            ORDER BY log_id DESC 
+            LIMIT 20
+        ''')
+
+        logs = cursor.fetchall()
+
+        if not logs:
+            bot.reply_to(message, "📭 Логи отсутствуют")
+            return
+
+        response = "📃 Последние 20 действий в системе:\n\n"
+        for log in logs:
+            response += f"👤 {log[0]}: {log[1]}\n"
+            response += f"   ⌚ {log[2]}\n\n"
+
+        bot.reply_to(message, response)
+        log_action(message.chat.id, "Просмотр системных логов")
+
+    except Exception as e:
+        error_msg = f"Ошибка получения системных логов: {str(e)}"
+        bot.reply_to(message, "⚠ Ошибка при загрузке логов")
+        logger.error(error_msg)
+        log_action(ADMIN_ID, error_msg, is_error=True)
+    finally:
+        if conn:
+            conn.close()
