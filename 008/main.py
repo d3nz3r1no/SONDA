@@ -1,6 +1,6 @@
 import logging
 import threading
-from time import sleep
+from datetime import datetime
 from telebot import TeleBot
 from db import Database
 from properties import TOKEN, ADMIN_ID
@@ -40,15 +40,16 @@ class BotApp:
         self.bot.message_handler(content_types=['text'])(buttoms_sys.handle_buttons)
 
     def auto_backup(self):
-        """Фоновая задача для резервного копирования БД"""
-        while not self.shutdown_flag.is_set():
-            try:
-                if self.db.backup_db():
-                    logger.info("Резервная копия БД создана успешно")
-                sleep(86400)  # Каждые 24 часа
-            except Exception as e:
-                logger.error(f"Ошибка при создании резервной копии: {e}")
-                sleep(3600)  # Повторить через час при ошибке
+        """Фоновая задача для автоматического резервного копирования"""
+        import time
+        while True:
+            if self.db.backup_db():
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Резервное копирование выполнено успешно")
+            else:
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Ошибка при резервном копировании")
+
+            # Ожидаем 24 часа до следующего копирования
+            time.sleep(24 * 60 * 60)
 
     def run(self):
         """Основной цикл работы бота"""
