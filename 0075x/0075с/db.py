@@ -2,6 +2,15 @@ import os
 import sqlite3
 from datetime import datetime
 
+def handle_db_errors(func):
+    """Декоратор для обработки ошибок БД"""
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except sqlite3.Error as e:
+            print(f"[Ошибка БД] {e}")
+            return None
+    return wrapper
 
 class Database:
     def __init__(self):

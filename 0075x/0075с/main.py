@@ -4,8 +4,8 @@ from time import sleep
 from telebot import TeleBot
 from db import Database
 from properties import TOKEN, ADMIN_ID
-import cmd
 import buttoms_sys
+import cmd
 
 # Настройка логирования
 logging.basicConfig(
