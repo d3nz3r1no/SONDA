@@ -22,7 +22,7 @@ def safe_calc(expression):
             return "Недопустимая операция"
 
         # Проверка длины
-        if len(expression) > 50:
+        if len(expression) > 100:
             return "Слишком длинное выражение"
 
         # Разрешенные символы
