@@ -1,13 +1,10 @@
 import math
 import sqlite3
 from db import db  # Импортируем экземпляр базы данных
-from logging import getLogger
 
-logger = getLogger(__name__)
 
 def save_calculation(user_id, expression, result):
-    print(f"Сохранение: {expression} = {result}")  # В консоль
-    logger.info(f"Сохранение вычисления для {user_id}")  # В файл
+    print(f"Сохранение: {expression} = {result}")  # В консоль\
     """Безопасное вычисление с поддержкой новых операций"""
     try:
         # Проверка на пустое выражение
