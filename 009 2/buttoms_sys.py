@@ -1,11 +1,12 @@
 import logging
+from log_action import log_action
 from datetime import datetime
 from db import db
-from cmd import bot, log_action
+from properties import bot
 from buttoms import markup, hellokeys, menubot, calcmarkup
 from calc_sys import safe_calc
 import sqlite3
-from passwords_sys import handle_passwords_start, handle_add_password, handle_show_passwords
+from passwords_sys import *
 
 # Настройка логгера
 logger = logging.getLogger(__name__)

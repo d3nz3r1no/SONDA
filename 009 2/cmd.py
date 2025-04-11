@@ -2,7 +2,7 @@ import logging
 import sqlite3
 from datetime import datetime
 from db import db
-from properties import ADMIN_ID, bot
+from properties import bot, ADMIN_ID
 from buttoms import markup
 
 # Настройка логгера

@@ -1,7 +1,8 @@
 import logging
+from log_action import log_action
 from telebot import types
 from db import db
-from cmd import bot, log_action
+from properties import bot  # Импортируем бота из properties
 from buttoms import passwords_markup
 from datetime import datetime
 
@@ -82,3 +83,49 @@ def process_password_input(message):
                          "Правильный формат:\n"
                          "<сервис> <логин> <пароль> <примечание>",
                          reply_markup=passwords_markup)
+
+
+def handle_show_passwords(message):
+    """Показывает сохраненные пароли пользователя"""
+    try:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT service_name, username, password, notes 
+            FROM passwords 
+            WHERE user_id = ?
+            ORDER BY service_name
+        ''', (message.chat.id,))
+
+        passwords = cursor.fetchall()
+
+        if not passwords:
+            bot.send_message(message.chat.id,
+                             "📭 У вас нет сохраненных паролей",
+                             reply_markup=passwords_markup)
+            return
+
+        response = "🔐 Ваши сохраненные пароли:\n\n"
+        for pwd in passwords:
+            response += f"🏷 Сервис: {pwd[0]}\n"
+            response += f"👤 Логин: {pwd[1]}\n"
+            response += f"🔑 Пароль: ||{pwd[2]}||\n"
+            if pwd[3]:
+                response += f"📝 Примечание: {pwd[3]}\n"
+            response += "――――――――――\n"
+
+        bot.send_message(message.chat.id,
+                         response,
+                         reply_markup=passwords_markup,
+                         parse_mode='MarkdownV2')
+        log_action(message.chat.id, "Просмотр списка паролей")
+
+    except Exception as e:
+        logger.error(f"Ошибка получения паролей: {str(e)}")
+        bot.send_message(message.chat.id,
+                         "❌ Ошибка при загрузке паролей",
+                         reply_markup=passwords_markup)
+        log_action(message.chat.id, "Ошибка просмотра паролей", is_error=True)
+    finally:
+        if conn:
+            conn.close()
