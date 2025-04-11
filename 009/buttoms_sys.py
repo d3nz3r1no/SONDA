@@ -323,124 +323,178 @@ def handle_passwords(message):
 
 
 def handle_addpass(message):
-    user_states[message.chat.id] = 'awaiting_service'
     """Начало процесса добавления пароля"""
     try:
         # Удаляем предыдущие обработчики
-        bot.clear_step_handler(message)
+        bot.clear_step_handler_by_chat_id(message.chat.id)
 
-        msg = bot.send_message(message.chat.id,
-                               "Введите название сервиса (например: Google):",
-                               reply_markup=types.ReplyKeyboardRemove())
+        # Устанавливаем состояние
+        user_states[message.chat.id] = {'state': 'awaiting_service'}
 
-        # Регистрируем следующий шаг с явным указанием фильтров
+        msg = bot.send_message(
+            message.chat.id,
+            "Введите название сервиса (например: Google):",
+            reply_markup=types.ReplyKeyboardRemove()
+        )
+
+        # Регистрируем следующий шаг
         bot.register_next_step_handler(
             msg,
-            process_service_step,
-            timeout=30
+            process_service_step
         )
+
         log_action(message.chat.id, "Начато добавление пароля")
     except Exception as e:
         error_msg = f"Ошибка при добавлении пароля: {str(e)}"
         logger.error(error_msg)
         bot.reply_to(message, "⚠ Ошибка при добавлении пароля", reply_markup=passmarkup)
         log_action(message.chat.id, error_msg, is_error=True)
+        clean_user_state(message.chat.id)
 
-@bot.message_handler(func=lambda m: user_states.get(m.chat.id) == 'awaiting_service')
-def process_service(message):
-    # Обработка ввода сервиса
-    user_states[message.chat.id] = 'awaiting_password'
 
 def process_service_step(message):
     """Обработка ввода сервиса"""
     try:
-        logger.info(f"Обработка сервиса: {message.text}")
-
-        # Проверка на команду возврата в меню
-        if message.text == "🔙 В меню":
+        # Проверка на команду возврата
+        if message.text.strip() == "🔙 В меню":
             handle_menu(message)
+            clean_user_state(message.chat.id)
             return
 
-        # Проверка на другие команды
-        if message.text.startswith('/'):
-            bot.clear_step_handler(message)
-            return
+        service = message.text.strip()
 
         # Валидация ввода
-        service = message.text.strip()
         if not service:
-            bot.send_message(message.chat.id,
-                             "❌ Название сервиса не может быть пустым",
-                             reply_markup=passmarkup)
+            bot.send_message(
+                message.chat.id,
+                "❌ Название сервиса не может быть пустым",
+                reply_markup=passmarkup
+            )
+            clean_user_state(message.chat.id)
             return
 
         if len(service) > 50:
-            bot.send_message(message.chat.id,
-                             "❌ Слишком длинное название (макс. 50 символов)",
-                             reply_markup=passmarkup)
+            bot.send_message(
+                message.chat.id,
+                "❌ Слишком длинное название (макс. 50 символов)",
+                reply_markup=passmarkup
+            )
+            clean_user_state(message.chat.id)
             return
 
+        # Обновляем состояние
+        user_states[message.chat.id] = {
+            'state': 'awaiting_password',
+            'service': service
+        }
+
         # Запрос пароля
-        msg = bot.send_message(message.chat.id,
-                               f"Введите пароль для {service}:",
-                               reply_markup=types.ForceReply())
+        msg = bot.send_message(
+            message.chat.id,
+            f"Введите пароль для {service}:",
+            reply_markup=types.ForceReply()
+        )
 
         # Регистрируем следующий шаг
         bot.register_next_step_handler(
             msg,
-            lambda m: process_password_step(m, {'user_id': message.chat.id, 'service': service}),
-            timeout=30
+            process_password_step
         )
 
     except Exception as e:
         logger.error(f"Ошибка в process_service_step: {str(e)}")
-        bot.send_message(message.chat.id,
-                         "⚠ Ошибка обработки. Попробуйте снова.",
-                         reply_markup=passmarkup)
+        bot.send_message(
+            message.chat.id,
+            "⚠ Ошибка обработки. Попробуйте снова.",
+            reply_markup=passmarkup
+        )
+        clean_user_state(message.chat.id)
 
 
-def process_password_step(message, user_data):
-    """Обработка ввода пароля и сохранение в БД"""
+def process_password_step(message):
+    """Обработка ввода пароля"""
     try:
-        if not message.text or len(message.text) > 100:
-            bot.send_message(message.chat.id,
-                             "Пароль должен быть от 1 до 100 символов",
-                             reply_markup=passmarkup)
+        user_data = user_states.get(message.chat.id, {})
+
+        if not user_data or user_data.get('state') != 'awaiting_password':
+            bot.send_message(
+                message.chat.id,
+                "⚠ Сессия устарела. Начните заново.",
+                reply_markup=passmarkup
+            )
+            clean_user_state(message.chat.id)
             return
 
         password = message.text.strip()
+
+        # Валидация пароля
+        if not password or len(password) > 100:
+            bot.send_message(
+                message.chat.id,
+                "Пароль должен быть от 1 до 100 символов",
+                reply_markup=passmarkup
+            )
+            clean_user_state(message.chat.id)
+            return
+
+        # Сохранение в БД
+        if save_password_to_db(message.chat.id, user_data['service'], password):
+            bot.send_message(
+                message.chat.id,
+                f"✅ Пароль для {user_data['service']} успешно сохранен!",
+                reply_markup=passmarkup
+            )
+            log_action(
+                message.chat.id,
+                f"Добавлен пароль для сервиса: {user_data['service']}"
+            )
+        else:
+            bot.send_message(
+                message.chat.id,
+                "⚠ Не удалось сохранить пароль",
+                reply_markup=passmarkup
+            )
+
+    except Exception as e:
+        error_msg = f"Ошибка при сохранении пароля: {str(e)}"
+        logger.error(error_msg)
+        bot.reply_to(message, "⚠ Ошибка при сохранении пароля")
+        log_action(message.chat.id, error_msg, is_error=True)
+    finally:
+        clean_user_state(message.chat.id)
+
+
+def save_password_to_db(user_id, service, password):
+    """Сохраняет пароль в БД"""
+    try:
         conn = db.get_connection()
         if not conn:
-            bot.send_message(message.chat.id,
-                             "⏳ Сервис временно недоступен. Попробуйте позже.",
-                             reply_markup=passmarkup)
-            return
+            return False
 
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO passwords (user_id, service, password, timestamp)
             VALUES (?, ?, ?, ?)
         ''', (
-            user_data['user_id'],
-            user_data['service'],
+            user_id,
+            service,
             password,
             datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ))
         conn.commit()
-
-        bot.send_message(message.chat.id,
-                         f"✅ Пароль для {user_data['service']} успешно сохранен!",
-                         reply_markup=passmarkup)
-        log_action(user_data['user_id'],
-                   f"Добавлен пароль для сервиса: {user_data['service']}")
+        return True
     except Exception as e:
-        error_msg = f"Ошибка при сохранении пароля: {str(e)}"
-        logger.error(error_msg)
-        bot.reply_to(message, "⚠ Ошибка при сохранении пароля")
-        log_action(user_data['user_id'], error_msg, is_error=True)
+        logger.error(f"Ошибка при сохранении пароля в БД: {str(e)}")
+        return False
     finally:
         if conn:
             conn.close()
+
+
+def clean_user_state(user_id):
+    """Очищает состояние пользователя"""
+    if user_id in user_states:
+        del user_states[user_id]
 
 
 def handle_mypass(message):
