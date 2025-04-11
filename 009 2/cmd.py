@@ -160,6 +160,11 @@ def show_my_logs(message):
 
 @bot.message_handler(commands=['history'])
 def show_history(message):
+    print(f"Получена команда /history от {message.chat.id}")  # В консоль
+    logger.info(f"Начало обработки /history для {message.chat.id}")  # В файл
+
+    # Временный ответ для проверки
+    bot.reply_to(message, "⏳ Обрабатываю ваш запрос истории...")
     """Улучшенный обработчик истории с диагностикой"""
     try:
         logger.info(f"Получен /history от {message.chat.id}")
@@ -183,12 +188,12 @@ def show_history(message):
 
         # Получение истории
         cursor.execute('''
-            SELECT expression, result, timestamp 
-            FROM calculations 
-            WHERE user_id=?
-            ORDER BY timestamp DESC 
-            LIMIT 5
-        ''', (message.chat.id,))
+                SELECT expression, result, timestamp 
+                FROM calculations 
+                WHERE user_id=?
+                ORDER BY timestamp DESC 
+                LIMIT 5
+            ''', (message.chat.id,))
 
         history = cursor.fetchall()
         response = "📝 История вычислений:\n\n" + "\n".join(
