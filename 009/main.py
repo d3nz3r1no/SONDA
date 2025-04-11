@@ -6,6 +6,7 @@ from db import Database
 from properties import TOKEN, ADMIN_ID
 import buttoms_sys
 import cmd
+import sys
 
 # Настройка логирования
 logging.basicConfig(
@@ -17,6 +18,10 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(handler)
 
 
 class BotApp:

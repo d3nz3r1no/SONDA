@@ -87,6 +87,7 @@ class Database:
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Ошибка подключения к БД: {e}")
             return None
 
+    # db.py (дополняем метод init_db)
     def init_db(self):
         """Инициализация таблиц в БД"""
         conn = self.get_connection()
@@ -117,6 +118,15 @@ class Database:
                     expression TEXT,
                     result TEXT,
                     timestamp TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS passwords (
+                    pass_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    service TEXT NOT NULL,
+                    password TEXT NOT NULL,
+                    timestamp TEXT,
+                    FOREIGN KEY (user_id) REFERENCES users(user_id)
                 );
             ''')
             conn.commit()
