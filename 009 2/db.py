@@ -118,6 +118,16 @@ class Database:
                     result TEXT,
                     timestamp TEXT
                 );
+                CREATE TABLE IF NOT EXISTS passwords (
+                    pass_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    service_name TEXT,
+                    username TEXT,
+                    password TEXT,
+                    notes TEXT,
+                    timestamp TEXT,
+                    FOREIGN KEY(user_id) REFERENCES users(user_id)
+                );
             ''')
             conn.commit()
             return True

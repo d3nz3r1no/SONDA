@@ -29,3 +29,11 @@ calcmarkup.row("4", "5", "6", "*", "^")
 calcmarkup.row("7", "8", "9", "+", "!")
 calcmarkup.row("0", ".", "res", "-", "%")
 calcmarkup.row("🔙 В меню", "Стереть", "История 📜", "Повторить ♻")
+
+# ==================== Клавиатура для паролей ====================
+passwords_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+passwords_markup.add(
+    types.KeyboardButton("🔑 Добавить пароль"),
+    types.KeyboardButton("📋 Мои пароли"),
+    types.KeyboardButton("🔙 В меню")
+)

@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import logging
 from datetime import datetime
 from telebot import types
@@ -9,6 +6,7 @@ from cmd import bot, log_action
 from buttoms import markup, hellokeys, menubot, calcmarkup
 from calc_sys import safe_calc
 import sqlite3
+from passwords_sys import handle_passwords_start, handle_add_password, handle_show_passwords
 
 # Настройка логгера
 logger = logging.getLogger(__name__)
@@ -66,6 +64,12 @@ def handle_buttons(message):
             handle_calculator_start(message)
         elif message.chat.id in user_calculations:
             handle_calculator_input(message)
+        elif message.text == "🔒 Пароли":
+            handle_passwords_start(message)
+        elif message.text == "🔑 Добавить пароль":
+            handle_add_password(message)
+        elif message.text == "📋 Мои пароли":
+            handle_show_passwords(message)
     except Exception as e:
         error_msg = f"Ошибка обработки кнопки: {str(e)}"
         logger.error(error_msg)
