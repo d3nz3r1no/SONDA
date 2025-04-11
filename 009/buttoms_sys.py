@@ -5,11 +5,10 @@ import logging
 from datetime import datetime
 from db import db
 from cmd import bot, log_action
-from buttoms import markup, hellokeys, menubot, calcmarkup
+from buttoms import *
 from calc_sys import safe_calc
 import sqlite3
 
-# Настройка логгера
 logger = logging.getLogger(__name__)
 
 # Глобальный словарь для хранения текущих вычислений
@@ -65,6 +64,12 @@ def handle_buttons(message):
             handle_calculator_start(message)
         elif message.chat.id in user_calculations:
             handle_calculator_input(message)
+        elif message.text == "🔒 Пароли":
+            handle_passwords(message)
+        elif message.text == "🔒 Добавить пароль":
+            handle_addpass(message)
+        elif message.text == "📂 Мои пароли":
+            handle_mypass(message)
     except Exception as e:
         error_msg = f"Ошибка обработки кнопки: {str(e)}"
         logger.error(error_msg)
@@ -297,3 +302,12 @@ def handle_calculator_sqrt(message):
     bot.send_message(message.chat.id,
                      "Пример: √(9)",
                      reply_markup=calcmarkup)
+
+def handle_passwords(message):
+    bot.reply_to(message, reply_markup=passmarkup)
+    log_action(message.chat.id, "Открыта функция паролей")
+
+def handle_addpass(message):
+
+
+def handle_addpass(message):
