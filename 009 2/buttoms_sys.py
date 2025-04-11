@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 # Глобальный словарь для хранения текущих вычислений
 user_calculations = {}
 
-
 def get_time():
     """Возвращает форматированное текущее время"""
     return datetime.now().strftime("%H:%M:%S")

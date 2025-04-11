@@ -3,7 +3,7 @@ import sqlite3
 from db import db  # Импортируем экземпляр базы данных
 
 
-def save_calculation(user_id, expression, result):
+def safe_calc(user_id, expression, result):
     print(f"Сохранение: {expression} = {result}")  # В консоль\
     """Безопасное вычисление с поддержкой новых операций"""
     try:
