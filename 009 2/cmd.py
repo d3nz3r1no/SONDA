@@ -160,63 +160,48 @@ def show_my_logs(message):
 
 @bot.message_handler(commands=['history'])
 def show_history(message):
-    """Показывает историю вычислений пользователя"""
-    conn = None
+    """Улучшенный обработчик истории с диагностикой"""
     try:
-        # Логируем начало выполнения команды
-        logger.info(f"Запрос истории от пользователя {message.chat.id}")
+        logger.info(f"Получен /history от {message.chat.id}")
+
+        # Временный ответ для отслеживания
+        bot.send_chat_action(message.chat.id, 'typing')
 
         conn = db.get_connection()
         if not conn:
-            error_msg = "Не удалось подключиться к БД"
-            logger.error(error_msg)
-            bot.reply_to(message, "⏳ Проблемы с базой данных. Попробуйте позже.")
-            return
+            logger.error("Нет соединения с БД")
+            return bot.reply_to(message, "🔧 Технические неполадки. Попробуйте позже.")
 
-        # Проверяем существование таблицы calculations
+        # Проверка таблицы
         cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='calculations'")
-        if not cursor.fetchone():
-            error_msg = "Таблица calculations не существует"
-            logger.error(error_msg)
-            bot.reply_to(message, "⚠ Внутренняя ошибка: таблица вычислений не найдена")
-            return
+        cursor.execute("SELECT COUNT(*) FROM calculations WHERE user_id=?", (message.chat.id,))
+        count = cursor.fetchone()[0]
 
-        # Получаем историю вычислений
+        if count == 0:
+            logger.info(f"Нет записей для {message.chat.id}")
+            return bot.reply_to(message, "📭 История вычислений пуста")
+
+        # Получение истории
         cursor.execute('''
             SELECT expression, result, timestamp 
-            FROM calculations
-            WHERE user_id = ?
-            ORDER BY timestamp DESC
+            FROM calculations 
+            WHERE user_id=?
+            ORDER BY timestamp DESC 
             LIMIT 5
         ''', (message.chat.id,))
 
         history = cursor.fetchall()
-
-        if not history:
-            logger.info(f"Пустая история для пользователя {message.chat.id}")
-            bot.reply_to(message, "📭 У вас пока нет истории вычислений")
-            return
-
-        # Формируем ответ
-        response = "📚 Ваши последние вычисления:\n\n"
-        for item in history:
-            response += f"➤ {item['expression']} = {item['result']}\n"
-            response += f"   ⌚ {item['timestamp']}\n\n"
+        response = "📝 История вычислений:\n\n" + "\n".join(
+            f"{i + 1}. {item[0]} = {item[1]} ({item[2]})"
+            for i, item in enumerate(history)
+        )
 
         bot.reply_to(message, response)
         logger.info(f"Успешно показана история для {message.chat.id}")
 
-    except sqlite3.Error as e:
-        error_msg = f"Ошибка SQL: {str(e)}"
-        logger.error(error_msg)
-        bot.reply_to(message, "⚠ Ошибка при работе с базой данных")
-
     except Exception as e:
-        error_msg = f"Неожиданная ошибка: {str(e)}"
-        logger.error(error_msg)
-        bot.reply_to(message, "⚠ Произошла непредвиденная ошибка")
-
+        logger.error(f"Ошибка в /history: {str(e)}")
+        bot.reply_to(message, f"⚠ Ошибка: {str(e)}")
     finally:
         if conn:
             conn.close()
