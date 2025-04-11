@@ -4,8 +4,9 @@ from datetime import datetime
 from telebot import TeleBot
 from db import Database
 from properties import TOKEN, ADMIN_ID
-import buttoms_sys
 import cmd
+import buttoms_sys
+import passwords_sys
 
 # Настройка логирования
 logging.basicConfig(
