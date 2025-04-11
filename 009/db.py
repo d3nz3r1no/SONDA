@@ -20,6 +20,48 @@ class Database:
         self.timeout = 30  # Увеличиваем таймаут ожидания
         self.max_retries = 3  # Максимальное количество попыток
 
+    def backup_db(self):
+        """Создает резервную копию базы данных"""
+        try:
+            import shutil
+            import os
+            from datetime import datetime
+
+            # Создаем директорию backups, если её нет
+            os.makedirs('backups', exist_ok=True)
+
+            # Формируем имя файла с timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = f"backups/sonda_backup_{timestamp}.db"
+
+            # Копируем файл БД
+            shutil.copy2(self.db_path, backup_path)
+
+            # Проверяем, что копия создана
+            if os.path.exists(backup_path):
+                return True
+            return False
+
+        except Exception as e:
+            print(f"Ошибка при создании резервной копии: {e}")
+            return False
+
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Резервная копия создана: {backup_path}")
+
+            # Удаляем старые бэкапы (оставляем последние 5)
+            backups = sorted([f for f in os.listdir(backup_dir) if f.startswith("sonda_backup_")])
+            for old_backup in backups[:-5]:
+                os.remove(os.path.join(backup_dir, old_backup))
+
+            return True
+
+        except PermissionError as e:
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Ошибка прав доступа при резервном копировании: {e}")
+            return False
+        except Exception as e:
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Критическая ошибка при резервном копировании: {e}")
+            return False
+
     def get_connection(self):
         """Возвращает соединение с БД с повторными попытками"""
         for attempt in range(self.max_retries):
@@ -37,55 +79,6 @@ class Database:
                     print(f"[{datetime.now()}] Ошибка подключения к БД после {self.max_retries} попыток: {e}")
                     return None
                 time.sleep(1)  # Ждем перед повторной попыткой
-
-    def backup_db(self):
-        """
-        Создает резервную копию базы данных с проверкой ошибок и логированием
-        Возвращает True при успешном копировании, False при ошибке
-        """
-        try:
-            import shutil
-            import os
-
-            # Пути к файлам
-            db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sonda_bot.db")
-            backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backups")
-
-            # Создаем директорию для бэкапов, если не существует
-            os.makedirs(backup_dir, exist_ok=True)
-
-            # Формируем имя файла с timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_path = os.path.join(backup_dir, f"sonda_backup_{timestamp}.db")
-
-            # Проверяем существование основного файла БД
-            if not os.path.exists(db_path):
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Файл БД не найден для резервного копирования")
-                return False
-
-            # Создаем резервную копию
-            shutil.copy2(db_path, backup_path)
-
-            # Проверяем, что копия создана
-            if not os.path.exists(backup_path):
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Ошибка: резервная копия не создана")
-                return False
-
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Резервная копия создана: {backup_path}")
-
-            # Удаляем старые бэкапы (оставляем последние 5)
-            backups = sorted([f for f in os.listdir(backup_dir) if f.startswith("sonda_backup_")])
-            for old_backup in backups[:-5]:
-                os.remove(os.path.join(backup_dir, old_backup))
-
-            return True
-
-        except PermissionError as e:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Ошибка прав доступа при резервном копировании: {e}")
-            return False
-        except Exception as e:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Критическая ошибка при резервном копировании: {e}")
-            return False
 
     def get_db_path(self):
         """Возвращает абсолютный путь к файлу БД"""

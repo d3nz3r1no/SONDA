@@ -18,10 +18,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-handler = logging.StreamHandler(sys.stdout)
-handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logger.addHandler(handler)
 
 
 class BotApp:
@@ -47,14 +43,22 @@ class BotApp:
     def auto_backup(self):
         """Фоновая задача для автоматического резервного копирования"""
         import time
-        while True:
-            if self.db.backup_db():
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Резервное копирование выполнено успешно")
-            else:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Ошибка при резервном копировании")
+        while not self.shutdown_flag.is_set():
+            try:
+                if hasattr(self.db, 'backup_db') and callable(self.db.backup_db):
+                    if self.db.backup_db():
+                        logger.info(f"Резервное копирование выполнено успешно")
+                    else:
+                        logger.error("Ошибка при резервном копировании")
+                else:
+                    logger.error("Метод backup_db не найден в классе Database")
 
-            # Ожидаем 24 часа до следующего копирования
-            time.sleep(24 * 60 * 60)
+                # Ожидаем 24 часа до следующего копирования
+                time.sleep(24 * 60 * 60)
+
+            except Exception as e:
+                logger.error(f"Ошибка в auto_backup: {e}")
+                time.sleep(60)  # Ждем 1 минуту перед повторной попыткой
 
     def run(self):
         """Основной цикл работы бота"""
