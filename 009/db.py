@@ -1,8 +1,9 @@
-import os
 import time
 import sqlite3
 from sqlite3 import Error
 from datetime import datetime
+import os
+import shutil
 
 def handle_db_errors(func):
     """Декоратор для обработки ошибок БД"""
@@ -17,33 +18,36 @@ def handle_db_errors(func):
 class Database:
     def __init__(self):
         self.db_path = "data/sonda_bot.db"
-        self.timeout = 30  # Увеличиваем таймаут ожидания
-        self.max_retries = 3  # Максимальное количество попыток
+        self.backup_dir = "backups"
+        self.timeout = 30
+        self.max_retries = 3
 
     def backup_db(self):
         """Создает резервную копию базы данных"""
         try:
-            import shutil
-            import os
-            from datetime import datetime
+            # Создаем директорию для бэкапов, если не существует
+            os.makedirs(self.backup_dir, exist_ok=True)
 
-            # Создаем директорию backups, если её нет
-            os.makedirs('backups', exist_ok=True)
+            # Проверяем существование основного файла БД
+            if not os.path.exists(self.db_path):
+                print(f"[{datetime.now()}] Файл БД не найден для резервного копирования")
+                return False
 
-            # Формируем имя файла с timestamp
+            # Создаем имя файла с временной меткой
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_path = f"backups/sonda_backup_{timestamp}.db"
+            backup_path = os.path.join(self.backup_dir, f"sonda_backup_{timestamp}.db")
 
-            # Копируем файл БД
+            # Копируем файл
             shutil.copy2(self.db_path, backup_path)
 
-            # Проверяем, что копия создана
+            # Проверяем успешность копирования
             if os.path.exists(backup_path):
+                print(f"[{datetime.now()}] Резервная копия создана: {backup_path}")
                 return True
             return False
 
         except Exception as e:
-            print(f"Ошибка при создании резервной копии: {e}")
+            print(f"[{datetime.now()}] Ошибка резервного копирования: {e}")
             return False
 
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Резервная копия создана: {backup_path}")

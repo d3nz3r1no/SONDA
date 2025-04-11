@@ -40,25 +40,24 @@ class BotApp:
         # Обработчики кнопок из buttoms_sys.py
         self.bot.message_handler(content_types=['text'])(buttoms_sys.handle_buttons)
 
+    # main.py (исправленная часть)
     def auto_backup(self):
         """Фоновая задача для автоматического резервного копирования"""
         import time
         while not self.shutdown_flag.is_set():
             try:
-                if hasattr(self.db, 'backup_db') and callable(self.db.backup_db):
-                    if self.db.backup_db():
-                        logger.info(f"Резервное копирование выполнено успешно")
-                    else:
-                        logger.error("Ошибка при резервном копировании")
+                success = self.db.backup_db()
+                if success:
+                    logger.info("Резервное копирование БД выполнено успешно")
                 else:
-                    logger.error("Метод backup_db не найден в классе Database")
+                    logger.error("Не удалось создать резервную копию БД")
 
-                # Ожидаем 24 часа до следующего копирования
-                time.sleep(24 * 60 * 60)
+                # Ожидаем 24 часа (86400 секунд) до следующей попытки
+                time.sleep(86400)
 
             except Exception as e:
-                logger.error(f"Ошибка в auto_backup: {e}")
-                time.sleep(60)  # Ждем 1 минуту перед повторной попыткой
+                logger.error(f"Ошибка в процессе резервного копирования: {str(e)}")
+                time.sleep(3600)  # При ошибке ждем 1 час перед повторной попыткой
 
     def run(self):
         """Основной цикл работы бота"""
