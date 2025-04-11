@@ -323,146 +323,81 @@ def handle_passwords(message):
 
 
 def handle_addpass(message):
-    """Начало процесса добавления пароля"""
     try:
-        # Удаляем предыдущие обработчики
+        # Очищаем предыдущие обработчики
         bot.clear_step_handler_by_chat_id(message.chat.id)
-
-        # Устанавливаем состояние
-        user_states[message.chat.id] = {'state': 'awaiting_service'}
 
         msg = bot.send_message(
             message.chat.id,
             "Введите название сервиса (например: Google):",
             reply_markup=types.ReplyKeyboardRemove()
         )
+        bot.register_next_step_handler(msg, lambda m: process_service_step(m))
 
-        # Регистрируем следующий шаг
-        bot.register_next_step_handler(
-            msg,
-            process_service_step
-        )
-
-        log_action(message.chat.id, "Начато добавление пароля")
     except Exception as e:
-        error_msg = f"Ошибка при добавлении пароля: {str(e)}"
-        logger.error(error_msg)
-        bot.reply_to(message, "⚠ Ошибка при добавлении пароля", reply_markup=passmarkup)
-        log_action(message.chat.id, error_msg, is_error=True)
-        clean_user_state(message.chat.id)
+        bot.reply_to(message, f"⚠ Ошибка: {str(e)}", reply_markup=passmarkup)
 
 
 def process_service_step(message):
-    """Обработка ввода сервиса"""
     try:
-        # Проверка на команду возврата
-        if message.text.strip() == "🔙 В меню":
-            handle_menu(message)
-            clean_user_state(message.chat.id)
-            return
-
         service = message.text.strip()
-
-        # Валидация ввода
         if not service:
-            bot.send_message(
-                message.chat.id,
-                "❌ Название сервиса не может быть пустым",
-                reply_markup=passmarkup
-            )
-            clean_user_state(message.chat.id)
-            return
+            raise ValueError("Название сервиса не может быть пустым")
 
-        if len(service) > 50:
-            bot.send_message(
-                message.chat.id,
-                "❌ Слишком длинное название (макс. 50 символов)",
-                reply_markup=passmarkup
-            )
-            clean_user_state(message.chat.id)
-            return
-
-        # Обновляем состояние
-        user_states[message.chat.id] = {
-            'state': 'awaiting_password',
-            'service': service
-        }
-
-        # Запрос пароля
         msg = bot.send_message(
             message.chat.id,
             f"Введите пароль для {service}:",
             reply_markup=types.ForceReply()
         )
-
-        # Регистрируем следующий шаг
         bot.register_next_step_handler(
             msg,
-            process_password_step
+            lambda m: process_password_step(m, service)
         )
 
     except Exception as e:
-        logger.error(f"Ошибка в process_service_step: {str(e)}")
-        bot.send_message(
-            message.chat.id,
-            "⚠ Ошибка обработки. Попробуйте снова.",
-            reply_markup=passmarkup
-        )
-        clean_user_state(message.chat.id)
+        bot.reply_to(message, f"⚠ Ошибка: {str(e)}", reply_markup=passmarkup)
 
 
-def process_password_step(message):
-    """Обработка ввода пароля"""
+def process_password_step(message, service):
     try:
-        user_data = user_states.get(message.chat.id, {})
-
-        if not user_data or user_data.get('state') != 'awaiting_password':
-            bot.send_message(
-                message.chat.id,
-                "⚠ Сессия устарела. Начните заново.",
-                reply_markup=passmarkup
-            )
-            clean_user_state(message.chat.id)
-            return
-
         password = message.text.strip()
+        if not password:
+            raise ValueError("Пароль не может быть пустым")
 
-        # Валидация пароля
-        if not password or len(password) > 100:
+        # Сохраняем в БД
+        if save_password(message.chat.id, service, password):
             bot.send_message(
                 message.chat.id,
-                "Пароль должен быть от 1 до 100 символов",
+                f"✅ Пароль для {service} сохранен!",
                 reply_markup=passmarkup
-            )
-            clean_user_state(message.chat.id)
-            return
-
-        # Сохранение в БД
-        if save_password_to_db(message.chat.id, user_data['service'], password):
-            bot.send_message(
-                message.chat.id,
-                f"✅ Пароль для {user_data['service']} успешно сохранен!",
-                reply_markup=passmarkup
-            )
-            log_action(
-                message.chat.id,
-                f"Добавлен пароль для сервиса: {user_data['service']}"
             )
         else:
-            bot.send_message(
-                message.chat.id,
-                "⚠ Не удалось сохранить пароль",
-                reply_markup=passmarkup
-            )
+            raise Exception("Не удалось сохранить пароль")
 
     except Exception as e:
-        error_msg = f"Ошибка при сохранении пароля: {str(e)}"
-        logger.error(error_msg)
-        bot.reply_to(message, "⚠ Ошибка при сохранении пароля")
-        log_action(message.chat.id, error_msg, is_error=True)
-    finally:
-        clean_user_state(message.chat.id)
+        bot.reply_to(message, f"⚠ Ошибка: {str(e)}", reply_markup=passmarkup)
 
+def save_password(user_id, service, password):
+    """Упрощенная функция сохранения с обработкой блокировок"""
+    try:
+        conn = sqlite3.connect(
+            "data/sonda_bot.db",
+            timeout=30,
+            check_same_thread=False
+        )
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO passwords (user_id, service, password, timestamp)
+            VALUES (?, ?, ?, ?)
+        ''', (user_id, service, password, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Ошибка сохранения пароля: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
 
 def save_password_to_db(user_id, service, password):
     """Сохраняет пароль в БД"""

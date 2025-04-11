@@ -1,5 +1,7 @@
 import os
+import time
 import sqlite3
+from sqlite3 import Error
 from datetime import datetime
 
 def handle_db_errors(func):
@@ -14,9 +16,27 @@ def handle_db_errors(func):
 
 class Database:
     def __init__(self):
-        self.db_path = self.get_db_path()
-        self.backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backups")
-        self.ensure_db_directory()
+        self.db_path = "data/sonda_bot.db"
+        self.timeout = 30  # Увеличиваем таймаут ожидания
+        self.max_retries = 3  # Максимальное количество попыток
+
+    def get_connection(self):
+        """Возвращает соединение с БД с повторными попытками"""
+        for attempt in range(self.max_retries):
+            try:
+                conn = sqlite3.connect(
+                    self.db_path,
+                    timeout=self.timeout,
+                    check_same_thread=False  # Разрешаем использование из разных потоков
+                )
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA journal_mode=WAL")  # Включаем WAL режим
+                return conn
+            except Error as e:
+                if attempt == self.max_retries - 1:
+                    print(f"[{datetime.now()}] Ошибка подключения к БД после {self.max_retries} попыток: {e}")
+                    return None
+                time.sleep(1)  # Ждем перед повторной попыткой
 
     def backup_db(self):
         """
@@ -76,16 +96,6 @@ class Database:
         """Гарантирует существование директории для БД"""
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         os.makedirs(self.backup_dir, exist_ok=True)
-
-    def get_connection(self):
-        """Возвращает соединение с БД с обработкой ошибок"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
-            return conn
-        except sqlite3.Error as e:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Ошибка подключения к БД: {e}")
-            return None
 
     # db.py (дополняем метод init_db)
     def init_db(self):
