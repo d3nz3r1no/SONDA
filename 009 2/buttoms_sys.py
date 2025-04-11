@@ -65,6 +65,8 @@ def handle_buttons(message):
             handle_add_password(message)
         elif message.text == "📋 Мои пароли":
             handle_show_passwords(message)
+        else:
+            handle_message(message)
     except Exception as e:
         error_msg = f"Ошибка обработки кнопки: {str(e)}"
         logger.error(error_msg)
