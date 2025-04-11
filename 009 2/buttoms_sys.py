@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-from telebot import types
 from db import db
 from cmd import bot, log_action
 from buttoms import markup, hellokeys, menubot, calcmarkup

@@ -6,6 +6,9 @@ from db import Database
 from properties import TOKEN, ADMIN_ID
 import buttoms_sys
 import cmd
+import sys
+
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 # Настройка логирования
 logging.basicConfig(
