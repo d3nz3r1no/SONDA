@@ -161,10 +161,12 @@ def show_my_logs(message):
 @bot.message_handler(commands=['history'])
 def show_history(message):
     """Показывает историю вычислений пользователя"""
+    logger.info(f"Выполняется запрос истории для user_id={message.chat.id}")
+    conn = None
     try:
         conn = db.get_connection()
         if not conn:
-            bot.reply_to(message, "⏳ Сервис временно недоступен.")
+            bot.reply_to(message, "⏳ Сервис временно недоступен. Попробуйте позже.")
             return
 
         conn.row_factory = sqlite3.Row
@@ -173,15 +175,16 @@ def show_history(message):
         cursor.execute('''
             SELECT expression, result, timestamp 
             FROM calculations
-            WHERE user_id = ? 
-            ORDER BY calc_id DESC 
+            WHERE user_id = ?
+            ORDER BY timestamp DESC
             LIMIT 5
         ''', (message.chat.id,))
 
         history = cursor.fetchall()
 
         if not history:
-            bot.reply_to(message, "📭 История вычислений пуста")
+            bot.reply_to(message, "📭 У вас пока нет истории вычислений")
+            log_action(message.chat.id, "Запрос пустой истории вычислений")
             return
 
         response = "📚 Ваши последние вычисления:\n\n"
@@ -192,11 +195,18 @@ def show_history(message):
         bot.reply_to(message, response)
         log_action(message.chat.id, "Просмотр истории вычислений")
 
-    except Exception as e:
-        error_msg = f"Ошибка получения истории: {str(e)}"
-        bot.reply_to(message, "⚠ Ошибка при загрузке истории")
+    except sqlite3.Error as e:
+        error_msg = f"Ошибка БД при получении истории: {str(e)}"
+        bot.reply_to(message, "⚠ Ошибка при загрузке истории вычислений")
         logger.error(error_msg)
         log_action(message.chat.id, error_msg, is_error=True)
+
+    except Exception as e:
+        error_msg = f"Неожиданная ошибка: {str(e)}"
+        bot.reply_to(message, "⚠ Произошла непредвиденная ошибка")
+        logger.error(error_msg)
+        log_action(message.chat.id, error_msg, is_error=True)
+
     finally:
         if conn:
             conn.close()
