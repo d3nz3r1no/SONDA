@@ -3,7 +3,7 @@ import threading
 from datetime import datetime
 from telebot import TeleBot
 from db import Database
-from properties import TOKEN, ADMIN_ID
+from properties import ADMIN_ID, TOKEN
 import cmd
 import buttoms_sys
 

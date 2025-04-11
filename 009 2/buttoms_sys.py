@@ -1,8 +1,3 @@
-import logging
-from log_action import log_action
-from datetime import datetime
-from db import db
-from properties import bot
 from buttoms import markup, hellokeys, menubot, calcmarkup
 from calc_sys import safe_calc
 import sqlite3
