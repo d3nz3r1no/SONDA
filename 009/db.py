@@ -119,10 +119,10 @@ class Database:
 
                 CREATE TABLE IF NOT EXISTS passwords (
                     pass_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER,
+                    user_id INTEGER NOT NULL,
                     service TEXT NOT NULL,
                     password TEXT NOT NULL,
-                    timestamp TEXT,
+                    timestamp TEXT NOT NULL,
                     FOREIGN KEY (user_id) REFERENCES users(user_id)
                 );
             ''')

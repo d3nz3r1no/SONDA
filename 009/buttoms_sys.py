@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import logging
 from datetime import datetime
 from db import db
@@ -14,13 +11,14 @@ logger = logging.getLogger(__name__)
 
 # Глобальный словарь для хранения текущих вычислений
 user_calculations = {}
-user_states = {}  # Глобальный словарь состояний
-
 
 def get_time():
     """Возвращает форматированное текущее время"""
     return datetime.now().strftime("%H:%M:%S")
 
+@bot.message_handler(func=lambda message: True)
+def debug_all_messages(message):
+    print(f"Получено сообщение: {message.text} от {message.chat.id}")
 
 def save_calculation(user_id, expression, result):
     """Сохраняет вычисление в БД"""
@@ -308,99 +306,146 @@ def handle_calculator_sqrt(message):
                      "Пример: √(9)",
                      reply_markup=calcmarkup)
 
+
+# Глобальный словарь для хранения временных данных
+user_temp_data = {}
+
 def handle_passwords(message):
     """Обработчик меню паролей"""
     try:
-        bot.send_message(message.chat.id,
-                         "🔐 Управление паролями:",
-                         reply_markup=passmarkup)
-        log_action(message.chat.id, "Открыта функция паролей")
+        bot.send_message(
+            message.chat.id,
+            "🔐 Выберите действие с паролями:",
+            reply_markup=passmarkup
+        )
+        log_action(message.chat.id, "Открыто меню паролей")
     except Exception as e:
-        error_msg = f"Ошибка в меню паролей: {str(e)}"
-        logger.error(error_msg)
+        logger.error(f"Ошибка в handle_passwords: {str(e)}")
         bot.reply_to(message, "⚠ Ошибка при открытии меню паролей")
-        log_action(message.chat.id, error_msg, is_error=True)
 
 
 def handle_addpass(message):
+    """Начало процесса добавления пароля"""
     try:
-        # Очищаем предыдущие обработчики
-        bot.clear_step_handler_by_chat_id(message.chat.id)
-
         msg = bot.send_message(
             message.chat.id,
             "Введите название сервиса (например: Google):",
-            reply_markup=types.ReplyKeyboardRemove()
+            reply_markup=cancel_markup
         )
-        bot.register_next_step_handler(msg, lambda m: process_service_step(m))
-
+        bot.register_next_step_handler(msg, process_service_name)
     except Exception as e:
-        bot.reply_to(message, f"⚠ Ошибка: {str(e)}", reply_markup=passmarkup)
+        logger.error(f"Ошибка в handle_addpass: {str(e)}")
+        bot.reply_to(message, "⚠ Ошибка при начале добавления пароля", reply_markup=passmarkup)
 
 
-def process_service_step(message):
+def process_service_name(message):
+    """Обработка ввода названия сервиса"""
     try:
-        service = message.text.strip()
-        if not service:
-            raise ValueError("Название сервиса не может быть пустым")
+        if message.text.lower() == '❌ отмена':
+            bot.send_message(message.chat.id, "Действие отменено", reply_markup=passmarkup)
+            return
+
+        # Сохраняем название сервиса во временное хранилище
+        user_temp_data[message.chat.id] = {'service': message.text}
 
         msg = bot.send_message(
             message.chat.id,
-            f"Введите пароль для {service}:",
-            reply_markup=types.ForceReply()
+            f"Введите пароль для сервиса '{message.text}':",
+            reply_markup=cancel_markup
         )
-        bot.register_next_step_handler(
-            msg,
-            lambda m: process_password_step(m, service)
-        )
-
+        bot.register_next_step_handler(msg, process_password_input)
     except Exception as e:
-        bot.reply_to(message, f"⚠ Ошибка: {str(e)}", reply_markup=passmarkup)
+        logger.error(f"Ошибка в process_service_name: {str(e)}")
+        bot.reply_to(message, "⚠ Ошибка при обработке названия сервиса", reply_markup=passmarkup)
 
 
-def process_password_step(message, service):
+def process_password_input(message):
+    """Обработка ввода пароля и сохранение в БД"""
     try:
-        password = message.text.strip()
-        if not password:
-            raise ValueError("Пароль не может быть пустым")
+        if message.text.lower() == '❌ отмена':
+            bot.send_message(message.chat.id, "Действие отменено", reply_markup=passmarkup)
+            return
 
-        # Сохраняем в БД
-        if save_password(message.chat.id, service, password):
+        user_id = message.chat.id
+        service = user_temp_data.get(user_id, {}).get('service')
+        password = message.text
+
+        if not service:
+            raise ValueError("Не найдено название сервиса")
+
+        if save_password_to_db(user_id, service, password):
             bot.send_message(
-                message.chat.id,
-                f"✅ Пароль для {service} сохранен!",
+                user_id,
+                f"✅ Пароль для '{service}' успешно сохранен!",
                 reply_markup=passmarkup
             )
+            log_action(user_id, f"Добавлен пароль для сервиса: {service}")
         else:
-            raise Exception("Не удалось сохранить пароль")
+            raise Exception("Не удалось сохранить пароль в БД")
 
     except Exception as e:
-        bot.reply_to(message, f"⚠ Ошибка: {str(e)}", reply_markup=passmarkup)
+        logger.error(f"Ошибка в process_password_input: {str(e)}")
+        bot.reply_to(message, f"⚠ Ошибка при сохранении пароля: {str(e)}", reply_markup=passmarkup)
+    finally:
+        # Очищаем временные данные
+        user_temp_data.pop(user_id, None)
 
-def save_password(user_id, service, password):
-    """Упрощенная функция сохранения с обработкой блокировок"""
+
+def handle_mypass(message):
+    """Показывает сохраненные пароли пользователя"""
     try:
-        conn = sqlite3.connect(
-            "data/sonda_bot.db",
-            timeout=30,
-            check_same_thread=False
-        )
+        conn = db.get_connection()
+        if not conn:
+            bot.send_message(
+                message.chat.id,
+                "⏳ Сервис временно недоступен. Попробуйте позже.",
+                reply_markup=passmarkup
+            )
+            return
+
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO passwords (user_id, service, password, timestamp)
-            VALUES (?, ?, ?, ?)
-        ''', (user_id, service, password, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-        conn.commit()
-        return True
+            SELECT service, password, timestamp 
+            FROM passwords 
+            WHERE user_id = ?
+            ORDER BY pass_id DESC
+        ''', (message.chat.id,))
+
+        passwords = cursor.fetchall()
+
+        if not passwords:
+            bot.send_message(
+                message.chat.id,
+                "🔍 У вас нет сохраненных паролей.",
+                reply_markup=passmarkup
+            )
+            return
+
+        response = "🔑 Ваши сохраненные пароли:\n\n"
+        for item in passwords:
+            response += f"🏷 Сервис: {item['service']}\n"
+            response += f"🔒 Пароль: ||{item['password']}||\n"
+            response += f"⏱ Добавлен: {item['timestamp']}\n\n"
+
+        bot.send_message(
+            message.chat.id,
+            response,
+            reply_markup=passmarkup,
+            parse_mode='MarkdownV2'  # Для скрытия пароля
+        )
+        log_action(message.chat.id, "Просмотр списка паролей")
+
     except Exception as e:
-        print(f"Ошибка сохранения пароля: {e}")
-        return False
+        logger.error(f"Ошибка в handle_mypass: {str(e)}")
+        bot.reply_to(message, "⚠ Ошибка при получении паролей", reply_markup=passmarkup)
     finally:
         if conn:
             conn.close()
 
+
 def save_password_to_db(user_id, service, password):
-    """Сохраняет пароль в БД"""
+    """Улучшенная функция сохранения пароля в БД"""
     try:
         conn = db.get_connection()
         if not conn:
@@ -419,59 +464,8 @@ def save_password_to_db(user_id, service, password):
         conn.commit()
         return True
     except Exception as e:
-        logger.error(f"Ошибка при сохранении пароля в БД: {str(e)}")
+        logger.error(f"Ошибка сохранения пароля: {str(e)}")
         return False
-    finally:
-        if conn:
-            conn.close()
-
-
-def clean_user_state(user_id):
-    """Очищает состояние пользователя"""
-    if user_id in user_states:
-        del user_states[user_id]
-
-
-def handle_mypass(message):
-    """Показывает сохраненные пароли пользователя"""
-    try:
-        conn = db.get_connection()
-        if not conn:
-            bot.send_message(message.chat.id,
-                             "⏳ Сервис временно недоступен. Попробуйте позже.",
-                             reply_markup=passmarkup)
-            return
-
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT service, password, timestamp 
-            FROM passwords 
-            WHERE user_id = ?
-            ORDER BY pass_id DESC
-        ''', (message.chat.id,))
-
-        passwords = cursor.fetchall()
-
-        if not passwords:
-            bot.send_message(message.chat.id,
-                             "🔍 У вас нет сохраненных паролей.",
-                             reply_markup=passmarkup)
-            return
-
-        response = "🔑 Ваши сохраненные пароли:\n\n"
-        for item in passwords:
-            response += f"🏷 Сервис: {item['service']}\n"
-            response += f"🔒 Пароль: {item['password']}\n"
-            response += f"⏱ Добавлен: {item['timestamp']}\n\n"
-
-        bot.send_message(message.chat.id, response, reply_markup=passmarkup)
-        log_action(message.chat.id, "Просмотр сохраненных паролей")
-    except Exception as e:
-        error_msg = f"Ошибка при получении паролей: {str(e)}"
-        logger.error(error_msg)
-        bot.reply_to(message, "⚠ Ошибка при получении паролей")
-        log_action(message.chat.id, error_msg, is_error=True)
     finally:
         if conn:
             conn.close()

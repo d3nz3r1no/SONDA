@@ -32,9 +32,9 @@ calcmarkup.row("🔙 В меню", "Стереть", "История 📜", "П�
 
 # Меню паролей
 passmarkup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-passmarkup.row("🔒 Добавить пароль")
-passmarkup.row("📂 Мои пароли")
-passmarkup.row("🔙 В меню")
+passmarkup.row(types.KeyboardButton("🔒 Добавить пароль"))
+passmarkup.row(types.KeyboardButton("📂 Мои пароли"))
+passmarkup.row(types.KeyboardButton("🔙 В меню"))
 
 cancel_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
 cancel_markup.add(types.KeyboardButton("❌ Отмена"))
