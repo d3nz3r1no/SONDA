@@ -25,39 +25,29 @@ class Database:
     def backup_db(self):
         """Создает резервную копию базы данных"""
         try:
+            import shutil
+            import os
+            from datetime import datetime
+
             # Создаем директорию для бэкапов, если не существует
-            os.makedirs(self.backup_dir, exist_ok=True)
+            backup_dir = "backups"
+            os.makedirs(backup_dir, exist_ok=True)
 
-            # Проверяем существование основного файла БД
-            if not os.path.exists(self.db_path):
-                print(f"[{datetime.now()}] Файл БД не найден для резервного копирования")
-                return False
-
-            # Создаем имя файла с временной меткой
+            # Формируем имя файла с timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_path = os.path.join(self.backup_dir, f"sonda_backup_{timestamp}.db")
+            backup_path = os.path.join(backup_dir, f"sonda_backup_{timestamp}.db")
 
-            # Копируем файл
+            # Копируем файл БД
             shutil.copy2(self.db_path, backup_path)
 
-            # Проверяем успешность копирования
+            # Проверяем, что копия создана
             if os.path.exists(backup_path):
-                print(f"[{datetime.now()}] Резервная копия создана: {backup_path}")
                 return True
             return False
 
         except Exception as e:
-            print(f"[{datetime.now()}] Ошибка резервного копирования: {e}")
+            print(f"[{datetime.now()}] Ошибка при создании резервной копии: {e}")
             return False
-
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Резервная копия создана: {backup_path}")
-
-            # Удаляем старые бэкапы (оставляем последние 5)
-            backups = sorted([f for f in os.listdir(backup_dir) if f.startswith("sonda_backup_")])
-            for old_backup in backups[:-5]:
-                os.remove(os.path.join(backup_dir, old_backup))
-
-            return True
 
         except PermissionError as e:
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Ошибка прав доступа при резервном копировании: {e}")
