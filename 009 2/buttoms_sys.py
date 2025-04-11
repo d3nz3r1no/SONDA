@@ -65,6 +65,8 @@ def handle_buttons(message):
             handle_add_password(message)
         elif message.text == "📋 Мои пароли":
             handle_show_passwords(message)
+        elif message.text == "🔙 В меню":
+            handle_calculator_exit(message)
         else:
             handle_message(message)
     except Exception as e:
