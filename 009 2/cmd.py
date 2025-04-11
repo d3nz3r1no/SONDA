@@ -161,17 +161,28 @@ def show_my_logs(message):
 @bot.message_handler(commands=['history'])
 def show_history(message):
     """Показывает историю вычислений пользователя"""
-    logger.info(f"Выполняется запрос истории для user_id={message.chat.id}")
     conn = None
     try:
+        # Логируем начало выполнения команды
+        logger.info(f"Запрос истории от пользователя {message.chat.id}")
+
         conn = db.get_connection()
         if not conn:
-            bot.reply_to(message, "⏳ Сервис временно недоступен. Попробуйте позже.")
+            error_msg = "Не удалось подключиться к БД"
+            logger.error(error_msg)
+            bot.reply_to(message, "⏳ Проблемы с базой данных. Попробуйте позже.")
             return
 
-        conn.row_factory = sqlite3.Row
+        # Проверяем существование таблицы calculations
         cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='calculations'")
+        if not cursor.fetchone():
+            error_msg = "Таблица calculations не существует"
+            logger.error(error_msg)
+            bot.reply_to(message, "⚠ Внутренняя ошибка: таблица вычислений не найдена")
+            return
 
+        # Получаем историю вычислений
         cursor.execute('''
             SELECT expression, result, timestamp 
             FROM calculations
@@ -183,29 +194,28 @@ def show_history(message):
         history = cursor.fetchall()
 
         if not history:
+            logger.info(f"Пустая история для пользователя {message.chat.id}")
             bot.reply_to(message, "📭 У вас пока нет истории вычислений")
-            log_action(message.chat.id, "Запрос пустой истории вычислений")
             return
 
+        # Формируем ответ
         response = "📚 Ваши последние вычисления:\n\n"
         for item in history:
             response += f"➤ {item['expression']} = {item['result']}\n"
             response += f"   ⌚ {item['timestamp']}\n\n"
 
         bot.reply_to(message, response)
-        log_action(message.chat.id, "Просмотр истории вычислений")
+        logger.info(f"Успешно показана история для {message.chat.id}")
 
     except sqlite3.Error as e:
-        error_msg = f"Ошибка БД при получении истории: {str(e)}"
-        bot.reply_to(message, "⚠ Ошибка при загрузке истории вычислений")
+        error_msg = f"Ошибка SQL: {str(e)}"
         logger.error(error_msg)
-        log_action(message.chat.id, error_msg, is_error=True)
+        bot.reply_to(message, "⚠ Ошибка при работе с базой данных")
 
     except Exception as e:
         error_msg = f"Неожиданная ошибка: {str(e)}"
-        bot.reply_to(message, "⚠ Произошла непредвиденная ошибка")
         logger.error(error_msg)
-        log_action(message.chat.id, error_msg, is_error=True)
+        bot.reply_to(message, "⚠ Произошла непредвиденная ошибка")
 
     finally:
         if conn:
