@@ -129,6 +129,7 @@ class Database:
                     service_name TEXT NOT NULL,
                     encrypted_password TEXT NOT NULL,
                     iv TEXT NOT NULL,
+                    salt TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
             ''')

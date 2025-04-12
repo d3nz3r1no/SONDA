@@ -40,6 +40,8 @@ def process_set_master(message):
 def process_add_password(message):
     """Добавление пароля"""
     try:
+        if ":" not in message.text:
+            raise ValueError("Неверный формат")
         service, password = message.text.split(":", 1)
         service = service.strip()
         password = password.strip()
@@ -50,6 +52,9 @@ def process_add_password(message):
         if not row:
             bot.reply_to(message, "❌ Сначала установите мастер-пароль!")
             return
+
+        msg = bot.send_message(message.chat.id, "🔑 Введите мастер-пароль для подтверждения:")
+        bot.register_next_step_handler(msg, lambda m: _finish_add_password(m, service, password))
 
         # Генерируем ключ и шифруем
         salt = bcrypt.gensalt()
@@ -70,11 +75,15 @@ def process_add_password(message):
         conn.commit()
         bot.reply_to(message, f"✅ Пароль для {service} сохранен!")
         log_action(message.chat.id, f"Добавлен пароль для {service}")
+    except ValueError:
+        bot.reply_to(message, "❌ Используйте формат: Сервис:Пароль")
 
     except Exception as e:
         bot.reply_to(message, f"⚠ Ошибка: {str(e)}")
+
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def show_passwords_list(message):
@@ -102,18 +111,9 @@ def show_passwords_list(message):
     finally:
         conn.close()
 
-def process_add_password(message):
-    try:
-        if ":" not in message.text:
-            raise ValueError
-        service, password = message.text.split(":", 1)
-        msg = bot.send_message(message.chat.id, "🔑 Введите мастер-пароль:")
-        bot.register_next_step_handler(msg, lambda m: _finish_add_password(m, service, password))
-    except ValueError:
-        bot.reply_to(message, "❌ Неверный формат. Используйте: Сервис:Пароль")
-
 def _finish_add_password(message, service, password_to_encrypt):
     conn = db.get_connection()
+    salt = bcrypt.gensalt()
     master_password = message.text.strip()
     try:
         salt = bcrypt.gensalt()
@@ -129,6 +129,7 @@ def _finish_add_password(message, service, password_to_encrypt):
             service,
             encrypted.hex(),
             iv.hex(),
+            salt.hex(),
             datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ))
         conn.commit()
@@ -150,13 +151,12 @@ def ask_for_master_password(message):
     bot.register_next_step_handler(msg, lambda m: decrypt_password_handler(m, service_name))
 
 def decrypt_password_handler(message, service_name):
-    """Дешифровка и отправка пароля"""
     master_password = message.text.strip()
     conn = db.get_connection()
     try:
-        # Получаем данные из БД
+        # Получаем данные из БД, включая соль
         row = conn.execute('''
-            SELECT encrypted_password, iv 
+            SELECT encrypted_password, iv, salt 
             FROM passwords 
             WHERE user_id = ? AND service_name = ?
         ''', (message.chat.id, service_name)).fetchone()
@@ -165,14 +165,14 @@ def decrypt_password_handler(message, service_name):
             bot.reply_to(message, "❌ Сервис не найден")
             return
 
-        # Генерация ключа и дешифровка
-        salt = bcrypt.gensalt()
+        # Используем сохраненную соль
+        salt = bytes.fromhex(row['salt'])  # Конвертируем из hex
+        iv = bytes.fromhex(row['iv'])
+        encrypted_password = bytes.fromhex(row['encrypted_password'])
+
+        # Генерируем ключ
         key = generate_key(master_password, salt)
-        decrypted = decrypt_password(
-            key,
-            bytes.fromhex(row['iv']),
-            bytes.fromhex(row['encrypted_password'])
-        )
+        decrypted = decrypt_password(key, iv, encrypted_password)
 
         bot.reply_to(message, f"🔓 Пароль для {service_name}: {decrypted}")
     except Exception as e:
