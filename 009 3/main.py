@@ -21,7 +21,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-@bot.message_handler(func=lambda msg: msg.text in ["🔑 Пароли"])
+@bot.message_handler(func=lambda msg: msg.text in ["🔒 Пароли"])
 def handle_password_menu(message):
     bot.send_message(message.chat.id, "Управление паролями:", reply_markup=password_markup)
 
