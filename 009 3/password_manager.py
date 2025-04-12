@@ -3,6 +3,9 @@ from db import db
 from encryption import *
 import bcrypt
 from cmd import bot, log_action
+import logging
+
+logger = logging.getLogger(__name__)
 
 def handle_password_buttons(message):
     """Обработчик кнопок меню паролей"""
@@ -31,8 +34,12 @@ def process_set_master(message):
         conn.commit()
         bot.reply_to(message, "✅ Мастер-пароль установлен")
         log_action(message.chat.id, "Установлен мастер-пароль")
+        conn.commit()
+        if not conn:
+            logger.error("Не удалось подключиться к БД")
+            return
     except Exception as e:
-        bot.reply_to(message, "⚠ Ошибка: " + str(e))
+        logger.error(f"Ошибка в process_set_master: {str(e)}")
     finally:
         conn.close()
 
@@ -112,15 +119,17 @@ def show_passwords_list(message):
         conn.close()
 
 def _finish_add_password(message, service, password_to_encrypt):
-    conn = db.get_connection()
-    salt = bcrypt.gensalt()
     master_password = message.text.strip()
+    conn = db.get_connection()
+    if not conn:
+        bot.reply_to(message, "❌ Ошибка подключения к БД")
+        return
+
     try:
         salt = bcrypt.gensalt()
         key = generate_key(master_password, salt)
         iv, encrypted = encrypt_password(key, password_to_encrypt)
 
-        # Сохранение в БД
         conn.execute('''
             INSERT INTO passwords (user_id, service_name, encrypted_password, iv, created_at)
             VALUES (?, ?, ?, ?, ?)
@@ -135,7 +144,8 @@ def _finish_add_password(message, service, password_to_encrypt):
         conn.commit()
         bot.reply_to(message, f"✅ Пароль для {service} сохранен!")
     except Exception as e:
-        bot.reply_to(message, f"⚠ Ошибка: {str(e)}")
+        logger.error(f"Ошибка: {str(e)}")
+        bot.reply_to(message, "⚠ Ошибка сохранения")
     finally:
         conn.close()
 

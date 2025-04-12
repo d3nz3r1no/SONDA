@@ -68,7 +68,6 @@ class Database:
             return False
 
     def get_db_path(self):
-        """Возвращает абсолютный путь к файлу БД"""
         base_dir = os.path.dirname(os.path.abspath(__file__))
         return os.path.join(base_dir, "data", "sonda_bot.db")
 
