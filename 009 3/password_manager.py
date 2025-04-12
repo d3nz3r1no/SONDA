@@ -4,7 +4,6 @@ from encryption import *
 import bcrypt
 from cmd import bot, log_action
 
-
 def handle_password_buttons(message):
     """Обработчик кнопок меню паролей"""
     if message.text == "🔑 Установить мастер-пароль":
@@ -106,23 +105,16 @@ def show_passwords_list(message):
 def process_add_password(message):
     try:
         if ":" not in message.text:
-            raise ValueError("Неверный формат")
+            raise ValueError
         service, password = message.text.split(":", 1)
-        service = service.strip()
-        password = password.strip()
-
-        # Запрос мастер-пароля
-        msg = bot.send_message(message.chat.id, "🔑 Введите мастер-пароль для подтверждения:")
+        msg = bot.send_message(message.chat.id, "🔑 Введите мастер-пароль:")
         bot.register_next_step_handler(msg, lambda m: _finish_add_password(m, service, password))
-
     except ValueError:
-        bot.reply_to(message, "❌ Используйте формат: Сервис:Пароль")
-    except Exception as e:
-        bot.reply_to(message, f"⚠ Ошибка: {str(e)}")
+        bot.reply_to(message, "❌ Неверный формат. Используйте: Сервис:Пароль")
 
 def _finish_add_password(message, service, password_to_encrypt):
-    master_password = message.text.strip()  # Теперь переменная определена
     conn = db.get_connection()
+    master_password = message.text.strip()
     try:
         salt = bcrypt.gensalt()
         key = generate_key(master_password, salt)
@@ -198,3 +190,11 @@ def decrypt_password_handler(message, service_name):
     # Получите из БД iv и encrypted_password
     # Сгенерируйте ключ и расшифруйте
     # Отправьте результат
+
+def process_set_master(message):
+    msg = bot.send_message(message.chat.id, "Повторите мастер-пароль:")
+    bot.register_next_step_handler(msg, lambda m: confirm_master_password(m, message.text))
+
+def confirm_master_password(message, first_password):
+    if message.text != first_password:
+        bot.reply_to(message, "❌ Пароли не совпадают")
