@@ -6,6 +6,8 @@ from cmd import bot, log_action
 from buttoms import markup, hellokeys, menubot, calcmarkup
 from calc_sys import safe_calc
 import sqlite3
+from password_manager import *
+from main import handle_password_menu
 
 # Настройка логгера
 logger = logging.getLogger(__name__)
@@ -63,6 +65,10 @@ def handle_buttons(message):
             handle_calculator_start(message)
         elif message.chat.id in user_calculations:
             handle_calculator_input(message)
+        elif message.text == "🔒 Пароли":
+            handle_password_menu(message)
+        elif message.text in ["🔑 Установить мастер-пароль", "➕ Добавить пароль", "📂 Мои пароли"]:
+            handle_password_buttons(message)
     except Exception as e:
         error_msg = f"Ошибка обработки кнопки: {str(e)}"
         logger.error(error_msg)

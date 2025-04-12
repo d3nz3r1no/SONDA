@@ -54,7 +54,7 @@ def process_add_password(message):
 
         # Генерируем ключ и шифруем
         salt = bcrypt.gensalt()
-        key = generate_key(row[0], salt)
+        key = generate_key(master_password, salt)
         iv, encrypted = encrypt_password(key, password)
 
         # Сохраняем в БД
@@ -103,3 +103,22 @@ def show_passwords_list(message):
     finally:
         conn.close()
 
+def process_add_password(message):
+    try:
+        if ":" not in message.text:
+            raise ValueError
+        service, password = message.text.split(":", 1)
+        ...
+    except ValueError:
+        bot.reply_to(message, "❌ Неверный формат. Используйте: Сервис:Пароль")
+
+def show_password(message):
+    """Просмотр пароля по мастер-паролю"""
+    msg = bot.send_message(message.chat.id, "Введите мастер-пароль:")
+    bot.register_next_step_handler(msg, lambda m: decrypt_password_handler(m, service_name))
+
+def decrypt_password_handler(message, service_name):
+    master_password = message.text
+    # Получите из БД iv и encrypted_password
+    # Сгенерируйте ключ и расшифруйте
+    # Отправьте результат

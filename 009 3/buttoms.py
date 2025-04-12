@@ -36,5 +36,6 @@ password_markup.add(
     types.KeyboardButton("🔑 Установить мастер-пароль"),
     types.KeyboardButton("➕ Добавить пароль"),
     types.KeyboardButton("📂 Мои пароли"),
-    types.KeyboardButton("🔙 Назад")
+    types.KeyboardButton("🔙 Назад"),
+    types.KeyboardButton("🔓 Показать пароль")
 )
