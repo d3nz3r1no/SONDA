@@ -4,6 +4,7 @@ from encryption import *
 import bcrypt
 from cmd import bot, log_action
 import logging
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ def process_set_master(message):
             return
     except Exception as e:
         logger.error(f"Ошибка в process_set_master: {str(e)}")
+        logger.error(f"Ошибка: {str(e)}\n{traceback.format_exc()}")
     finally:
         conn.close()
 
@@ -87,6 +89,7 @@ def process_add_password(message):
 
     except Exception as e:
         bot.reply_to(message, f"⚠ Ошибка: {str(e)}")
+        logger.error(f"Ошибка: {str(e)}\n{traceback.format_exc()}")
 
     finally:
         if conn:
@@ -115,6 +118,7 @@ def show_passwords_list(message):
 
     except Exception as e:
         bot.reply_to(message, f"⚠ Ошибка: {str(e)}")
+        logger.error(f"Ошибка: {str(e)}\n{traceback.format_exc()}")
     finally:
         conn.close()
 
@@ -130,22 +134,30 @@ def _finish_add_password(message, service, password_to_encrypt):
         key = generate_key(master_password, salt)
         iv, encrypted = encrypt_password(key, password_to_encrypt)
 
+        # Исправленный SQL-запрос с добавлением salt
         conn.execute('''
-            INSERT INTO passwords (user_id, service_name, encrypted_password, iv, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO passwords (
+                user_id, 
+                service_name, 
+                encrypted_password, 
+                iv, 
+                salt, 
+                created_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
         ''', (
             message.chat.id,
             service,
             encrypted.hex(),
             iv.hex(),
-            salt.hex(),
+            salt.hex(),  # Сохраняем соль
             datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ))
         conn.commit()
         bot.reply_to(message, f"✅ Пароль для {service} сохранен!")
     except Exception as e:
-        logger.error(f"Ошибка: {str(e)}")
-        bot.reply_to(message, "⚠ Ошибка сохранения")
+        logger.error(f"Ошибка при сохранении пароля: {str(e)}", exc_info=True)
+        bot.reply_to(message, "⚠ Ошибка сохранения. Подробности в логах.")
+        logger.error(f"Ошибка: {str(e)}\n{traceback.format_exc()}")
     finally:
         conn.close()
 
@@ -187,6 +199,7 @@ def decrypt_password_handler(message, service_name):
         bot.reply_to(message, f"🔓 Пароль для {service_name}: {decrypted}")
     except Exception as e:
         bot.reply_to(message, f"⚠ Ошибка: {str(e)}")
+        logger.error(f"Ошибка: {str(e)}\n{traceback.format_exc()}")
     finally:
         conn.close()
 
