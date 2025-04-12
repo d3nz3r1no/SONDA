@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import logging
 from datetime import datetime
 from telebot import types
@@ -103,7 +100,7 @@ def handle_about(message):
         "Я - SONDA, создана для удобства человека.\n"
         "Группа тестировщиков - https://t.me/sondatest\n"
         "Канал про меня - https://t.me/sondachanel\n\n"
-        "Версия: 0.0.8"
+        "Версия: 0.0.9"
     )
     bot.reply_to(message, about_text, reply_markup=markup)
     log_action(message.chat.id, "Просмотр информации о боте")

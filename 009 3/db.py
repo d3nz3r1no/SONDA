@@ -118,6 +118,19 @@ class Database:
                     result TEXT,
                     timestamp TEXT
                 );
+                CREATE TABLE IF NOT EXISTS master_keys (
+                    user_id INTEGER PRIMARY KEY,
+                    master_key_hash TEXT NOT NULL
+                );
+            
+                CREATE TABLE IF NOT EXISTS passwords (
+                    pass_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    service_name TEXT NOT NULL,
+                    encrypted_password TEXT NOT NULL,
+                    iv TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
             ''')
             conn.commit()
             return True

@@ -6,6 +6,7 @@ from db import Database
 from properties import TOKEN, ADMIN_ID
 import buttoms_sys
 import cmd
+from password_manager import handle_password_buttons
 
 # Настройка логирования
 logging.basicConfig(
@@ -18,6 +19,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+@bot.message_handler(func=lambda msg: msg.text in ["🔑 Пароли"])
+def handle_password_menu(message):
+    bot.send_message(message.chat.id, "Управление паролями:", reply_markup=password_markup)
+
+@bot.message_handler(func=lambda msg: msg.text.startswith("🔙 Назад"))
+def handle_back(message):
+    bot.send_message(message.chat.id, "Главное меню:", reply_markup=menubot)
 
 class BotApp:
     def __init__(self):
