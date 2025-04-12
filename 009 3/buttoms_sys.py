@@ -69,6 +69,8 @@ def handle_buttons(message):
             handle_password_menu(message)
         elif message.text in ["🔑 Установить мастер-пароль", "➕ Добавить пароль", "📂 Мои пароли"]:
             handle_password_buttons(message)
+        elif message.text == "🔓 Показать пароль":
+            ask_for_service(message)
     except Exception as e:
         error_msg = f"Ошибка обработки кнопки: {str(e)}"
         logger.error(error_msg)
