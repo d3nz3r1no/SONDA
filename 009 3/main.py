@@ -3,10 +3,12 @@ import threading
 from datetime import datetime
 from telebot import TeleBot
 from db import Database
-from properties import TOKEN, ADMIN_ID
+from properties import TOKEN, ADMIN_ID, bot
 import buttoms_sys
 import cmd
-from password_manager import handle_password_buttons
+from buttoms_sys import *
+from password_manager import *
+from buttoms import *
 
 # Настройка логирования
 logging.basicConfig(
