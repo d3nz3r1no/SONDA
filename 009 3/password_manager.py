@@ -122,6 +122,7 @@ def show_passwords_list(message):
     finally:
         conn.close()
 
+
 def _finish_add_password(message, service, password_to_encrypt):
     master_password = message.text.strip()
     conn = db.get_connection()
@@ -130,11 +131,12 @@ def _finish_add_password(message, service, password_to_encrypt):
         return
 
     try:
+        # Генерация соли и ключа
         salt = bcrypt.gensalt()
         key = generate_key(master_password, salt)
         iv, encrypted = encrypt_password(key, password_to_encrypt)
 
-        # Исправленный SQL-запрос с добавлением salt
+        # Корректный SQL-запрос с 6 параметрами
         conn.execute('''
             INSERT INTO passwords (
                 user_id, 
@@ -149,17 +151,18 @@ def _finish_add_password(message, service, password_to_encrypt):
             service,
             encrypted.hex(),
             iv.hex(),
-            salt.hex(),  # Сохраняем соль
+            salt.hex(),  # Добавлен salt
             datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ))
-        conn.commit()
+        conn.commit()  # Фиксация изменений
         bot.reply_to(message, f"✅ Пароль для {service} сохранен!")
+
     except Exception as e:
-        logger.error(f"Ошибка при сохранении пароля: {str(e)}", exc_info=True)
-        bot.reply_to(message, "⚠ Ошибка сохранения. Подробности в логах.")
-        logger.error(f"Ошибка: {str(e)}\n{traceback.format_exc()}")
+        logger.error(f"Ошибка: {str(e)}", exc_info=True)  # Подробное логирование
+        bot.reply_to(message, "⚠ Ошибка сохранения. Проверьте логи.")
     finally:
-        conn.close()
+        if conn:
+            conn.close()  # Закрытие соединения
 
 def ask_for_service(message):
     """Запрос названия сервиса"""
