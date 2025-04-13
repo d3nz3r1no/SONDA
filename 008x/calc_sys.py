@@ -1,6 +1,6 @@
 import math
 import sqlite3
-from db import db  # Импортируем экземпляр базы данных
+from db import db
 
 def safe_calc(expression):
     """Безопасное вычисление с поддержкой новых операций"""
