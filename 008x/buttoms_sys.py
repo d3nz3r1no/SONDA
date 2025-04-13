@@ -3,6 +3,7 @@ from datetime import datetime
 from cmd import bot, log_action
 from buttoms import markup, hellokeys, menubot
 from calc_sys import *
+from  pass_sys import *
 
 # Настройка логгера
 logger = logging.getLogger(__name__)
@@ -100,4 +101,21 @@ def handle_calculator_input(message):
         error_msg = f"Ошибка в калькуляторе: {str(e)}"
         logger.error(error_msg)
         bot.reply_to(message, "⚠ Ошибка в вычислении. Попробуйте еще раз.")
+        log_action(message.chat.id, error_msg, is_error=True)
+
+@bot.message_handler(content_types=['text']) # Кнопки Паролей - обработка
+def handle_passwords_input(message):
+    try:
+        if message.text == "Добавить пароль":
+            addpass(message)
+        elif message.text == "Мои пароли":
+            mypass(message)
+        elif message.text == "Удалить пароль":
+            deletepass(message)
+        elif message.text == "🔙 В меню":
+            passexit(message)
+    except Exception as e:
+        error_msg = f"Ошибка в (Пароли): {str(e)}"
+        logger.error(error_msg)
+        bot.reply_to(message, "⚠ Ошибка в (Пароли). Попробуйте еще раз.")
         log_action(message.chat.id, error_msg, is_error=True)
